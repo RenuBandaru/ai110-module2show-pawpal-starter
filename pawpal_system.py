@@ -26,6 +26,7 @@ class Task:
     type: str
     description: str
     pet_id: str
+    owner_id: str
     due_date: date
     status: str = "pending"
     recurrence: Optional[str] = None
@@ -40,7 +41,8 @@ class Task:
 
 
 class Owner:
-    def __init__(self, name: str, email: str, phone: str):
+    def __init__(self, owner_id: str, name: str, email: str, phone: str):
+        self.owner_id = owner_id
         self.name = name
         self.email = email
         self.phone = phone
@@ -59,6 +61,7 @@ class Scheduler:
     def __init__(self):
         self.tasks: list[Task] = []
         self.notifications: list[str] = []
+        self.owners: dict[str, Owner] = {}
 
     def add_task(self, task: Task) -> None: ...
 

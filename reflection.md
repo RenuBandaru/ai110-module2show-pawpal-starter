@@ -22,7 +22,7 @@ The application needs ot know the profile details for both the owner and the pet
 
 The application needs to be able to create a task based on the owner's inputs for the pet and schedule it accordingly into their calendar to accomadate for themselves and their pet.
 
-These are the components and their corresponding attributes and methods
+These are the classes and their corresponding attributes and methods
 
 **Owner**
 
@@ -41,54 +41,49 @@ _Methods:_
 **Pet**
 
 _Attributes:_
+* name — pet's name
+* species — e.g. dog, cat, bird
+* breed — specific breed
+* age — age in years
+* weight — for medication/feeding calculations
+* medicalHistory — list of notes/conditions
+* ownerId — reference back to Owner
 
-name — pet's name
-species — e.g. dog, cat, bird
-breed — specific breed
-age — age in years
-weight — for medication/feeding calculations
-medicalHistory — list of notes/conditions
-ownerId — reference back to Owner
-Methods:
-
-getProfile() — returns pet summary info
-addMedicalNote(note) — appends to medical history
-getAge() — calculates/returns current age
+_Methods:_
+* getProfile() — returns pet summary info
+* addMedicalNote(note) — appends to medical history
+* getAge() — calculates/returns current age
 
 **Task**
 
 _Attributes:_
-
-taskId — unique identifier
-type — e.g. "feeding", "grooming", "vet", "medication"
-description — details about the task
-petId — which pet this task is for
-dueDate — when it needs to happen
-status — "pending", "completed", "overdue"
-recurrence — e.g. "daily", "weekly", null
+* taskId — unique identifier
+* type — e.g. "feeding", "grooming", "vet", "medication"
+* description — details about the task
+* petId — which pet this task is for
+* dueDate — when it needs to happen
+* status — "pending", "completed", "overdue"
+* recurrence — e.g. "daily", "weekly", null
 
 Methods:
-
-complete() — marks task as completed
-isOverdue() — checks if dueDate has passed
-reschedule(newDate) — updates the due date
-getNextOccurrence() — calculates next date if recurring
+* complete() — marks task as completed
+* isOverdue() — checks if dueDate has passed
+* reschedule(newDate) — updates the due date
+* getNextOccurrence() — calculates next date if recurring
 
 **Scheduler**
 
 _Attributes:_
-
-tasks — list of all Task objects
-notifications — pending alerts to send
+* tasks — list of all Task objects
+* notifications — pending alerts to send
 
 _Methods:_
-
-addTask(task) — registers a new task
-removeTask(taskId) — deletes a task
-getTasksForPet(petId) — filters tasks by pet
-getUpcomingTasks(days) — returns tasks due within N days
-checkOverdueTasks() — scans and flags overdue tasks
-sendReminder(task, owner) — triggers a notification
+* addTask(task) — registers a new task
+* removeTask(taskId) — deletes a task
+* getTasksForPet(petId) — filters tasks by pet
+* getUpcomingTasks(days) — returns tasks due within N days
+* checkOverdueTasks() — scans and flags overdue tasks
+* sendReminder(task, owner) — triggers a notification
 
 
 **b. Design changes**
@@ -96,6 +91,12 @@ sendReminder(task, owner) — triggers a notification
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
 
+Yes the design did change during implementation. One of the main fixes included adding an owner id and linking Owner with the Task  since task has no direct reference to the Owner. The second is link the scheduler and owners as it is important to understand which task should be reminded to the owner directly by ID
+
+These are the fixes applied to pawpal_system.py with the help of AI:
+1. Owner — added owner_id: str as the first parameter so owners have a stable identifier
+2. Task — added owner_id: str field so any task can resolve back to its owner without needing external context
+3. Scheduler — added owners: dict[str, Owner] registry so send_reminder() and future auto-notification logic can look up an owner directly by ID
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
