@@ -1,28 +1,60 @@
-# PawPal+ (Module 2 Project)
+# PawPal+
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+**PawPal+** is a Streamlit app that helps pet owners build and manage a consistent care schedule for their pets. It tracks tasks across multiple pets, automatically surfaces the most urgent care first, warns about scheduling conflicts, and rolls recurring tasks forward so nothing ever falls through the cracks.
+
+---
+
+## Features
+
+### Owner & Pet Management
+Register an owner and one or more pets in a single step. Each pet maintains its own task history, and every owner is tracked independently so the system can detect cross-pet scheduling conflicts.
+
+### Chronological Task Sorting
+All schedule views are sorted by due date, earliest first. When two tasks share the exact same time slot, a secondary medical-priority sort breaks the tie automatically:
+
+| Priority | Task type |
+|---|---|
+| 1 (highest) | Medication |
+| 2 | Vet visit |
+| 3 | Feeding |
+| 4 | Exercise |
+| 5 | Grooming |
+
+This ensures a pet owner always sees the most critical care at the top of their list, without any manual re-ordering.
+
+### Conflict Detection
+Before every task is saved, the scheduler checks the owner's full pending task list for a 30-minute overlap window. Two conflict types are reported:
+
+- **Same-pet conflict** — the pet already has a task in that slot.
+- **Cross-pet owner conflict** — the owner is already occupied with a different pet at that time.
+
+The task is always saved — the owner stays in control — but a clear warning is shown immediately so they can reschedule if needed. Completed tasks never trigger a false conflict.
+
+### Recurring Task Auto-Advance
+Tasks can repeat on a `daily`, `weekly`, or `monthly` cadence. When a recurring task is completed, `get_next_occurrence()` calculates the next due date anchored to today — not the original due date. This means completing an overdue daily feeding will always schedule the next one for tomorrow at the same time, never in the past.
+
+### Status History
+Completed tasks are preserved as a permanent record rather than deleted. The task list splits into two tabs:
+
+- **Pending** — sorted chronologically, with medical-priority color badges (🔴 medication → 🔵 grooming).
+- **Completed** — full history of every task that has been marked done.
+
+Three header metrics (Pending / Completed / Total) give an at-a-glance count before the table loads.
+
+### Overdue Detection
+Any pending task whose due date has passed is flagged automatically. The overdue list is sorted oldest-first so the most neglected task surfaces at the top. Overdue tasks appear above upcoming tasks in the schedule view so nothing critical is buried.
+
+### Schedule Builder
+A slider lets the owner choose a lookahead window (1–30 days). Clicking **Generate schedule** runs two Scheduler queries:
+
+1. `get_upcoming_tasks(days)` — returns all pending tasks in the window, sorted by time then priority.
+2. `check_overdue_tasks()` — surfaces any tasks already past their due date.
+
+A confirmation banner reports the total task count for the selected window.
+
+---
 
 ## Scenario
-
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
-
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
-
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
-
-## What you will build
-
-Your final app should:
-
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
-
-## Smarter Scheduling
 
 The scheduler goes beyond a simple task list with four algorithmic improvements:
 
@@ -61,6 +93,10 @@ All 13 tests pass and cover the three core behaviors the scheduler advertises: p
 One star is withheld because the tests run against in-memory state and fixed offsets from `datetime.now()`. Real-world risk areas not yet covered include persistence across restarts, the Streamlit UI layer, and month-boundary behavior for `"monthly"` recurrence (which uses a fixed 30-day delta rather than a calendar month).
 
 ---
+
+### DEMO 
+
+![PawPal+ App Screenshot](assignment2_codepath.png)
 
 ## Getting started
 

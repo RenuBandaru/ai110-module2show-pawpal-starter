@@ -129,10 +129,14 @@ The tasks overlap on paper but are manageable back-to-back in real life generall
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
 
+I used AI tools a lot for this project starting from brainstorming to refactoring and debugging and even some areas understanding how python classes work. I always ensured to ask the reasoning or help me understand the code it suggests and where it comes from so I can learn while I validate if its something that I wanted to implement
+
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+One moment was trying to understand whether the time was being calculated correctly when it was updated recurring events. I denited the as-is suggestion and asked to check for the case where its not calculated month based because not all months are 30 days and it would create a mismatch with the months. 
 
 ---
 
@@ -143,11 +147,16 @@ The tasks overlap on paper but are manageable back-to-back in real life generall
 - What behaviors did you test?
 - Why were these tests important?
 
+Some of the behaviors tested were sorting, recurring task next-occurrence logic and conflict detection. These behaviors are the core guarantees of the scheduler because if sorting is wrong, owners see the wrong task first. If recurrence breaks, tasks vanish and if conflicts go undetected, pets get double-booked.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
 
+4/5 — all 13 tests pass across the main happy paths and critical edge cases, including overdue recurrence anchoring and unknown task types.
+
+Given more time I would test month-boundary behavior for "monthly" recurrence, the Streamlit UI layer end-to-end, and behavior when two owners share the exact same owner_id by accident.
 ---
 
 ## 5. Reflection
@@ -156,10 +165,16 @@ The tasks overlap on paper but are manageable back-to-back in real life generall
 
 - What part of this project are you most satisfied with?
 
+The part I am most satisfied is to understand how to use AI and architect a whole project from the UML stage to deploying the app. Its my first time experiencing this and I learned a lot through it. SO I'm glad I could understand and make the code work.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+I would try to understand better how the parts could be improved from both UI perspective and design layout. I feel like since I didn't get to spend as much time as I would like, I was rushing to understand and make it work. 
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+One important thing is that it is necessary to verify the code tha AI is suggesting and ensure you are reading it before you are allowing it to implement it. Also AI is just a tool to help you make something work but the idea creation is quite reliant on people and we can improve our ideas with the help of tools like AI

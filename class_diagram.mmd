@@ -1,13 +1,17 @@
 classDiagram
     class Owner {
+        +String owner_id
         +String name
         +String email
         +String phone
         +List~Pet~ pets
-        +addPet(pet) void
-        +removePet(petId) void
-        +getPets() List~Pet~
-        +scheduleTask(task, scheduler) void
+        +Scheduler scheduler
+        +add_pet(pet) void
+        +remove_pet(pet_id) void
+        +get_pets() List~Pet~
+        +schedule_task(task, scheduler) void
+        +get_all_tasks() List~Task~
+        +get_tasks_for_pet(pet_id) List~Task~
     }
 
     class Pet {
@@ -16,39 +20,46 @@ classDiagram
         +String breed
         +int age
         +float weight
-        +List~String~ medicalHistory
-        +String ownerId
-        +getProfile() String
-        +addMedicalNote(note) void
-        +getAge() int
+        +String owner_id
+        +List~String~ medical_history
+        +List~Task~ tasks
+        +get_profile() String
+        +add_medical_note(note) void
+        +get_age() int
+        +get_tasks() List~Task~
     }
 
     class Task {
-        +String taskId
+        +String task_id
         +String type
         +String description
-        +String petId
-        +Date dueDate
+        +String pet_id
+        +String owner_id
+        +datetime due_date
         +String status
-        +String recurrence
+        +Optional~String~ recurrence
         +complete() void
-        +isOverdue() bool
-        +reschedule(newDate) void
-        +getNextOccurrence() Date
+        +is_overdue() bool
+        +reschedule(new_date) void
+        +get_next_occurrence() Optional~datetime~
     }
 
     class Scheduler {
         +List~Task~ tasks
         +List~String~ notifications
-        +addTask(task) void
-        +removeTask(taskId) void
-        +getTasksForPet(petId) List~Task~
-        +getUpcomingTasks(days) List~Task~
-        +checkOverdueTasks() List~Task~
-        +sendReminder(task, owner) void
+        +Dict~String_Owner~ owners
+        +add_task(task, pet) Optional~String~
+        +remove_task(task_id) void
+        +get_tasks_for_pet(pet_id) List~Task~
+        +get_upcoming_tasks(days) List~Task~
+        +get_tasks_by_status(status) List~Task~
+        +check_overdue_tasks() List~Task~
+        +has_conflict(task, duration_minutes) Optional~String~
+        +send_reminder(task, owner) void
     }
 
-    Owner "1" --> "*" Pet : owns
-    Owner "1" --> "*" Task : creates
-    Pet "1" --> "*" Task : assigned to
-    Scheduler "1" o-- "*" Task : manages
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : tracks
+    Scheduler "1" o-- "0..*" Task : manages
+    Scheduler "1" o-- "0..*" Owner : registers
+    Owner "1" --> "1" Scheduler : queries

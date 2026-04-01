@@ -107,31 +107,77 @@ if st.button("Add task"):
             recurrence=recurrence if recurrence != "none" else None,  # None means one-off task
         )
 
-        # Scheduler.add_task(task, pet) does two things:
-        #   1. Appends task to scheduler.tasks (the master list)
-        #   2. Appends task to pet.tasks (so pet.get_tasks() stays in sync)
-        scheduler.add_task(task, pet)
-        st.success(f"Task added: {task.description}")
+        # Scheduler.add_task() returns a conflict warning string, or None if the slot is clear.
+        # We always add the task (the owner stays in control) but surface the warning immediately.
+        conflict = scheduler.add_task(task, pet)
+        if conflict:
+            st.warning(f"Task added with a scheduling conflict:\n\n{conflict}")
+        else:
+            st.success(f"Task added: {task.description}")
 
-# Read tasks directly from the Scheduler's master list (not a separate session_state list)
-current_tasks = st.session_state.scheduler.tasks
-if current_tasks:
-    st.write("Current tasks:")
-    # Build a list of plain dicts so st.table can render them as a readable table
-    st.table([
-        {
-            "ID": t.task_id,
-            "Type": t.type,
-            "Description": t.description,
-            "Pet": t.pet_id,
-            "Due": t.due_date.strftime("%Y-%m-%d %H:%M"),
-            "Status": t.status,                  # "pending" or "completed"
-            "Recurrence": t.recurrence or "—",   # show a dash if the task doesn't repeat
-        }
-        for t in current_tasks
-    ])
-else:
-    st.info("No tasks yet. Add one above.")
+# ── Task list: split into Pending / Completed tabs ───────────────────────────
+# Uses Scheduler.get_tasks_by_status() so both tabs are sorted by due_date
+# rather than raw insertion order. Completed tasks are preserved as history.
+scheduler_ref: Scheduler = st.session_state.scheduler
+pending_tasks   = scheduler_ref.get_tasks_by_status("pending")
+completed_tasks = scheduler_ref.get_tasks_by_status("completed")
+
+# Metrics give a quick at-a-glance count before the table loads
+m1, m2, m3 = st.columns(3)
+m1.metric("Pending",   len(pending_tasks))
+m2.metric("Completed", len(completed_tasks))
+m3.metric("Total",     len(scheduler_ref.tasks))
+
+# Priority badge shown next to each task type so urgency is visible at a glance
+PRIORITY_LABEL = {
+    "medication": "🔴 medication",
+    "vet":        "🟠 vet",
+    "feeding":    "🟡 feeding",
+    "exercise":   "🟢 exercise",
+    "grooming":   "🔵 grooming",
+}
+
+tab_pending, tab_completed = st.tabs(["Pending", "Completed"])
+
+with tab_pending:
+    if pending_tasks:
+        st.dataframe(
+            [
+                {
+                    "Priority": PRIORITY_LABEL.get(t.type, f"⚪ {t.type}"),
+                    "Description": t.description,
+                    "Pet": t.pet_id,
+                    "Due": t.due_date.strftime("%b %d  %H:%M"),
+                    "Recurrence": t.recurrence or "—",
+                    "ID": t.task_id,
+                }
+                for t in pending_tasks   # already sorted by due_date from get_tasks_by_status()
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No pending tasks yet. Add one above.")
+
+with tab_completed:
+    if completed_tasks:
+        st.dataframe(
+            [
+                {
+                    "Type": t.type,
+                    "Description": t.description,
+                    "Pet": t.pet_id,
+                    "Was due": t.due_date.strftime("%b %d  %H:%M"),
+                    "Recurrence": t.recurrence or "—",
+                    "ID": t.task_id,
+                }
+                for t in completed_tasks
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No completed tasks yet.")
 
 st.divider()
 
@@ -146,30 +192,41 @@ days_ahead = st.slider("Show tasks due within (days)", min_value=1, max_value=30
 if st.button("Generate schedule"):
     scheduler: Scheduler = st.session_state.scheduler
 
-    # Scheduler.get_upcoming_tasks(days) — returns tasks due between now and now+days,
-    # sorted chronologically by due_date
+    # get_upcoming_tasks() — sorted by (due_date, medical priority) via Scheduler
     upcoming = scheduler.get_upcoming_tasks(days_ahead)
-
-    # Scheduler.check_overdue_tasks() — returns tasks whose due_date has passed
-    # and whose status is still "pending" (delegates to Task.is_overdue() internally)
-    overdue = scheduler.check_overdue_tasks()
+    # check_overdue_tasks() — oldest overdue first, delegates to Task.is_overdue()
+    overdue  = scheduler.check_overdue_tasks()
 
     if not upcoming and not overdue:
         st.info("No upcoming or overdue tasks in the selected window.")
     else:
-        if upcoming:
-            st.markdown("#### Upcoming Tasks")
-            for t in upcoming:
-                # Append a recurrence note if the task repeats (e.g. "_(repeats daily)_")
-                extra = f" _(repeats {t.recurrence})_" if t.recurrence else ""
-                st.markdown(
-                    f"- **{t.description}** [{t.type}] — due {t.due_date.strftime('%Y-%m-%d %H:%M')}{extra}"
-                )
-
+        # ── Overdue tasks ── shown first so critical items are never buried
         if overdue:
             st.markdown("#### Overdue Tasks")
             for t in overdue:
-                # st.error renders a red banner — makes overdue tasks visually distinct
                 st.error(
-                    f"OVERDUE — {t.description} [{t.type}] was due {t.due_date.strftime('%Y-%m-%d %H:%M')}"
+                    f"**OVERDUE** — {t.description}  |  "
+                    f"{PRIORITY_LABEL.get(t.type, t.type)}  |  "
+                    f"was due {t.due_date.strftime('%b %d  %H:%M')}"
                 )
+
+        # ── Upcoming tasks ── rendered as a styled dataframe so columns are scannable
+        if upcoming:
+            st.markdown("#### Upcoming Tasks")
+
+            # Rows are already priority-sorted by Scheduler.get_upcoming_tasks()
+            rows = []
+            for t in upcoming:
+                rows.append({
+                    "Priority": PRIORITY_LABEL.get(t.type, f"⚪ {t.type}"),
+                    "Description": t.description,
+                    "Pet": t.pet_id,
+                    "Due": t.due_date.strftime("%b %d  %H:%M"),
+                    "Recurrence": f"↻ {t.recurrence}" if t.recurrence else "—",
+                })
+
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+            st.success(
+                f"{len(upcoming)} task{'s' if len(upcoming) != 1 else ''} scheduled "
+                f"over the next {days_ahead} day{'s' if days_ahead != 1 else ''}."
+            )
