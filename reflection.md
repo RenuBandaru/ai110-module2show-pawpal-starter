@@ -106,10 +106,19 @@ These are the fixes applied to pawpal_system.py with the help of AI:
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+Some of the constraints that we consider is the time and priority Time being the primary constraint, the code allows for a 30 minute window overlap to detect when two tasks occupy the same slot. Priority matters when it comes to tasks because, for example, medication always beats grooming, vet beats feeding. This reflects medical urgency, not personal preference. 
+
+Time was treated as the foundation because without accurate scheduling, nothing else matters, for ex: a reminder for the wrong day is useless. Priority was added last and intentionally kept at the display layer rather than as a hard scheduling rule. It guides the owner's attention without overriding their choices. 
+
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+One of the tradeoff my scheduler makes is that even though it identifies that there is a conflict in teh scheduling, it just returns a warning string and still allows to append the task to teh master list. 
+
+The tasks overlap on paper but are manageable back-to-back in real life generally. Blocking the add entirely would frustrate the user and force workarounds (picking a fake time just to get past the error). By warning instead of blocking, the scheduler surfaces the conflict so the owner is aware, but trusts them to make the final call. 
 
 ---
 

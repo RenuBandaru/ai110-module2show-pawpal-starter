@@ -53,8 +53,10 @@ class Task:
     recurrence: Optional[str] = None   # how often to repeat: "daily", "weekly", "monthly", or None
 
     def complete(self) -> None:
-        """Mark this task as completed so it no longer appears as overdue."""
-        # Marks this task as done — prevents it from appearing as overdue
+        """Mark this task as completed. Always sets status to 'completed' — preserves the record.
+        For recurring tasks, call Scheduler.complete_task() instead, which spawns the next instance."""
+        if self.status == "completed":
+            return  # no-op: already done, prevent double-completion
         self.status = "completed"
 
     def is_overdue(self) -> bool:
@@ -71,14 +73,24 @@ class Task:
         self.status = "pending"
 
     def get_next_occurrence(self) -> Optional[datetime]:
-        """Return the next due date for a recurring task, or None if the task does not recur."""
-        # Calculates the next due date for a recurring task by adding the
-        # recurrence interval (in days) to the current due_date.
-        # Returns None for one-off (non-recurring) tasks.
+        """Return the next due date for a recurring task, or None if the task does not recur.
+
+        Anchors to today (datetime.now()) so that completing an overdue task schedules
+        the next occurrence from now, not from the original (already-past) due date.
+        The original time-of-day (hour, minute) is preserved so a daily 8am task stays at 8am.
+        """
         intervals: dict[str, int] = {"daily": 1, "weekly": 7, "monthly": 30}
-        if self.recurrence in intervals:
-            return self.due_date + timedelta(days=intervals[self.recurrence])
-        return None
+        if self.recurrence not in intervals:
+            return None
+        # Use today as the base so overdue tasks don't produce a next date that is still in the past.
+        # timedelta(days=N) adds exactly N * 24 hours, giving an accurate same-time-tomorrow result.
+        today_at_task_time = datetime.now().replace(
+            hour=self.due_date.hour,
+            minute=self.due_date.minute,
+            second=0,
+            microsecond=0,
+        )
+        return today_at_task_time + timedelta(days=intervals[self.recurrence])
 
 
 # ─── OWNER ───────────────────────────────────────────────────────────────────
@@ -135,13 +147,15 @@ class Scheduler:
         self.notifications: list[str] = []   # log of reminder messages sent
         self.owners: dict[str, Owner] = {}   # registry of owners keyed by owner_id for O(1) lookup
 
-    def add_task(self, task: Task, pet: Optional[Pet] = None) -> None:
-        """Add a task to the master list and, if provided, to the pet's own task list."""
-        # If a Pet object is also provided, the task is added to that pet's own task list too,
-        # keeping both lists in sync so pet.get_tasks() works correctly.
+    def add_task(self, task: Task, pet: Optional[Pet] = None) -> Optional[str]:
+        """Add a task to the master list. Returns a warning string if a conflict is detected,
+        or None if the slot is clear. The task is always added — the caller decides what to do
+        with the warning (show it in the UI, log it, etc.)."""
+        warning = self.has_conflict(task)
         self.tasks.append(task)
         if pet is not None:
             pet.tasks.append(task)
+        return warning
 
     def remove_task(self, task_id: str) -> None:
         """Remove the task matching task_id from the master task list."""
@@ -153,18 +167,91 @@ class Scheduler:
         return [t for t in self.tasks if t.pet_id == pet_id]
 
     def get_upcoming_tasks(self, days: int) -> list[Task]:
-        """Return tasks due within the next given number of days, sorted by due date."""
-        # Sorting ensures the output is always in chronological order regardless
-        # of the order tasks were added.
+        """Return pending tasks due within the next `days` days, sorted by time then medical priority.
+
+        Sorting uses a two-key tuple (due_date, priority_rank):
+          - Primary key: due_date ascending — chronological order.
+          - Secondary key: task type rank — lower number = higher urgency.
+            medication(0) > vet(1) > feeding(2) > exercise(3) > grooming(4)
+          When two tasks share the exact same time, the more medically urgent one appears first.
+
+        Args:
+            days: Lookahead window in days (e.g. 1 = today only, 7 = this week).
+
+        Returns:
+            List of Task objects within [now, now+days], sorted by (due_date, priority).
+        """
+        # Primary sort: chronological. Secondary sort: task-type priority so that
+        # medication/vet tasks surface above grooming when two tasks share the same time.
+        PRIORITY = {"medication": 0, "vet": 1, "feeding": 2, "exercise": 3, "grooming": 4}
         cutoff = datetime.now() + timedelta(days=days)
         upcoming = [t for t in self.tasks if datetime.now() <= t.due_date <= cutoff]
-        return sorted(upcoming, key=lambda t: t.due_date)
+        return sorted(upcoming, key=lambda t: (t.due_date, PRIORITY.get(t.type, 99)))
+
+    def get_tasks_by_status(self, status: str) -> list[Task]:
+        """Return all tasks matching the given status, sorted chronologically by due date.
+
+        Completed tasks are kept in the master list as a history record — this method
+        is the primary way to query them separately from active work.
+
+        Args:
+            status: Either "pending" (not yet done) or "completed" (done and preserved).
+
+        Returns:
+            List of Task objects with the matching status, sorted by due_date ascending.
+        """
+        return sorted(
+            [t for t in self.tasks if t.status == status],
+            key=lambda t: t.due_date
+        )
 
     def check_overdue_tasks(self) -> list[Task]:
-        """Return all tasks that are past their due date and not yet completed."""
-        # Scans all tasks and returns those that are overdue.
-        # Delegates the overdue check to Task.is_overdue() so the logic stays on the Task class.
-        return [t for t in self.tasks if t.is_overdue()]
+        """Return all pending tasks whose due date has passed, sorted oldest-first.
+
+        Delegates the overdue check to Task.is_overdue() so the logic stays on the Task class.
+        Sorting oldest-first ensures the most neglected task surfaces at the top — useful for
+        triggering reminders in priority order.
+
+        Returns:
+            List of overdue Task objects sorted by due_date ascending (oldest overdue first).
+        """
+        return sorted(
+            [t for t in self.tasks if t.is_overdue()],
+            key=lambda t: t.due_date
+        )
+
+    def has_conflict(self, new_task: Task, duration_minutes: int = 30) -> Optional[str]:
+        """Check whether new_task overlaps any existing pending task for the same owner.
+
+        Two cases are detected:
+          1. Same pet — the pet already has something scheduled in that window.
+          2. Same owner, different pet — the owner is already occupied with another pet.
+
+        Returns a warning string describing the conflict, or None if the slot is clear.
+        """
+        new_end = new_task.due_date + timedelta(minutes=duration_minutes)
+
+        # Check all pending tasks belonging to the same owner (covers same-pet and cross-pet)
+        owner_tasks = [t for t in self.tasks
+                       if t.owner_id == new_task.owner_id and t.status != "completed"]
+
+        for t in owner_tasks:
+            t_end = t.due_date + timedelta(minutes=duration_minutes)
+            # Overlap formula: two windows [A, A+dur) and [B, B+dur) overlap when A < B_end AND B < A_end
+            if t.due_date < new_end and new_task.due_date < t_end:
+                if t.pet_id == new_task.pet_id:
+                    return (
+                        f"[SAME-PET WARNING] '{new_task.description}' for {new_task.pet_id} "
+                        f"overlaps '{t.description}' at {t.due_date.strftime('%I:%M %p')}."
+                    )
+                else:
+                    return (
+                        f"[OWNER WARNING] '{new_task.description}' (for {new_task.pet_id}) "
+                        f"overlaps '{t.description}' (for {t.pet_id}) "
+                        f"at {t.due_date.strftime('%I:%M %p')} — owner can only handle one pet at a time."
+                    )
+        return None
+
 
     def send_reminder(self, task: Task, owner: Owner) -> None:
         """Build a reminder message for the given task and append it to the notifications log."""
