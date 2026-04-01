@@ -21,22 +21,19 @@ class Pet:
 
     def get_profile(self) -> str:
         """Return a readable summary string of the pet's name, species, breed, age, and weight."""
-        # Returns a single readable summary string for display purposes
         return f"{self.name} ({self.species}, {self.breed}) - Age: {self.age}, Weight: {self.weight}kg"
 
     def add_medical_note(self, note: str) -> None:
         """Append a new note to the pet's medical history."""
-        # Appends a new note to the pet's medical history (e.g. "Vaccinated 2026-03")
+        # (e.g. "Vaccinated 2026-03")
         self.medical_history.append(note)
 
     def get_age(self) -> int:
         """Return the pet's current age in years."""
-        # Returns the pet's current age in years
         return self.age
 
     def get_tasks(self) -> list["Task"]:
         """Return all tasks directly attached to this pet."""
-        # Returns all tasks directly attached to this pet
         # Tasks are added here when Scheduler.add_task() is called with this pet as an argument
         return self.tasks
 
@@ -100,7 +97,6 @@ class Owner:
 
     def add_pet(self, pet: Pet) -> None:
         """Register a new pet under this owner."""
-        # Registers a new pet under this owner
         self.pets.append(pet)
 
     def remove_pet(self, pet_id: str) -> None:
@@ -110,12 +106,10 @@ class Owner:
 
     def get_pets(self) -> list[Pet]:
         """Return all pets belonging to this owner."""
-        # Returns all pets belonging to this owner
         return self.pets
 
     def schedule_task(self, task: Task, scheduler: "Scheduler") -> None:
         """Delegate adding a task to the Scheduler."""
-        # Delegates task creation to the Scheduler.
         # Owner is the entry point; Scheduler is the keeper of all tasks.
         scheduler.add_task(task)
 
@@ -127,7 +121,6 @@ class Owner:
 
     def get_tasks_for_pet(self, pet_id: str) -> list[Task]:
         """Return all tasks assigned to a specific pet owned by this owner."""
-        # Returns tasks for one specific pet belonging to this owner.
         # Filters by both pet_id and owner_id to avoid cross-owner collisions.
         return [t for t in self.scheduler.tasks if t.pet_id == pet_id and t.owner_id == self.owner_id]
 
@@ -144,7 +137,6 @@ class Scheduler:
 
     def add_task(self, task: Task, pet: Optional[Pet] = None) -> None:
         """Add a task to the master list and, if provided, to the pet's own task list."""
-        # Adds a task to the master task list.
         # If a Pet object is also provided, the task is added to that pet's own task list too,
         # keeping both lists in sync so pet.get_tasks() works correctly.
         self.tasks.append(task)
@@ -158,12 +150,10 @@ class Scheduler:
 
     def get_tasks_for_pet(self, pet_id: str) -> list[Task]:
         """Return all tasks assigned to a specific pet across all owners."""
-        # Returns all tasks assigned to a specific pet across all owners
         return [t for t in self.tasks if t.pet_id == pet_id]
 
     def get_upcoming_tasks(self, days: int) -> list[Task]:
         """Return tasks due within the next given number of days, sorted by due date."""
-        # Returns tasks due between today and `days` days from now, sorted by due_date.
         # Sorting ensures the output is always in chronological order regardless
         # of the order tasks were added.
         cutoff = datetime.now() + timedelta(days=days)
@@ -178,7 +168,6 @@ class Scheduler:
 
     def send_reminder(self, task: Task, owner: Owner) -> None:
         """Build a reminder message for the given task and append it to the notifications log."""
-        # Builds a reminder message and appends it to the notifications log.
         # In a real app this would trigger an email, push notification, or SMS.
         message = f"Reminder for {owner.name}: '{task.description}' is due on {task.due_date}"
         self.notifications.append(message)
